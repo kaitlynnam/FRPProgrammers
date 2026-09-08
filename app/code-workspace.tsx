@@ -4,7 +4,7 @@ import {Discussion,type Save} from './page';
 import type {Row,Data} from '../lib/model';
 type Preview={ref:string;path:string;content?:string;entries?:{name:string;path:string;type:string}[]};
 export default function CodeWorkspace({rows,team,save,target,createTask}:{rows:Row[];team:string;save:Save;target?:Data;createTask:(d:Data)=>void}){
- const repos=rows.filter(r=>r.kind==='repo'&&(team==='All teams'||r.data.team===team||r.data.team==='All teams'));
+ const repos=rows.filter(r=>r.kind==='repo'&&!r.data.archived&&(team==='All teams'||r.data.team===team||r.data.team==='All teams'));
  const [repo,setRepo]=useState(''),[preview,setPreview]=useState<Preview|null>(null),[line,setLine]=useState<number|undefined>(),[loading,setLoading]=useState(false),[error,setError]=useState(''),[input,setInput]=useState(''),[repoTeam,setRepoTeam]=useState(team),[adding,setAdding]=useState(false),[path,setPath]=useState('');const request=useRef(0);
  async function load(r:string,p='',ref=''){const sequence=++request.current;setRepo(r);setPath(p);setLoading(true);setError('');setLine(undefined);try{const res=await fetch('/api/github?'+new URLSearchParams({repo:r,path:p,ref}));const data=await res.json() as Preview & {error?:string};if(!res.ok)throw new Error(data.error);if(sequence===request.current)setPreview(data)}catch(e){if(sequence===request.current){setPreview(null);setError(e instanceof Error?e.message:'Could not load the file.')}}finally{if(sequence===request.current)setLoading(false)}}
  useEffect(()=>{if(target?.repo)void load(target.repo,target.path||'',target.ref||'').then(()=>setLine(target.line))},[target]);
