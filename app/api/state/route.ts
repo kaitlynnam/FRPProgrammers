@@ -1,0 +1,2 @@
+import {getDb} from '../../../db';
+export async function GET(){try{const result=await (await getDb()).prepare("SELECT id,kind,data,version,actor,created_at AS createdAt,updated_at AS updatedAt FROM records ORDER BY created_at DESC").all();return Response.json({records:result.results.map(r=>({...r,data:JSON.parse(r.data as string)}))},{headers:{'Cache-Control':'no-store'}})}catch{ return Response.json({error:'Could not load the shared workspace. Please try again.'},{status:503})}}

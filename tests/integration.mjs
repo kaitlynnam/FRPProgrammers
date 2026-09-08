@@ -1,0 +1,20 @@
+import assert from 'node:assert/strict';
+const base='http://localhost:3000';
+async function request(path,method='GET',body){const response=await fetch(base+path,{method,headers:{'Content-Type':'application/json'},body:body?JSON.stringify(body):undefined});return {status:response.status,data:await response.json()}}
+const task={title:'__FRP_TEST__ concurrent task',description:'Integration fixture',team:'AIM',assignee:'',status:'To do',due:'2026-09-20',priority:'Normal',blocked:false};
+const initial=await request('/api/records','POST',{kind:'task',actor:'Kaitlyn',data:task});assert.equal(initial.status,201);const id=initial.data.id;
+const reads=await Promise.all([request('/api/state'),request('/api/state')]);for(const r of reads)assert.ok(r.data.records.some(row=>row.id===id),'Both clients see the created task');
+const concurrent=await Promise.all(['Ben','Kaitlyn'].map(actor=>request('/api/records','PATCH',{id,version:1,actor,data:{status:'In progress'}})));assert.deepEqual(concurrent.map(r=>r.status).sort(),[200,409]);
+let snapshot=(await request('/api/state')).data.records;let row=snapshot.find(r=>r.id===id);assert.equal(row.version,2);assert.equal(row.data.status,'In progress');
+assert.equal((await request('/api/records','PATCH',{id,version:2,actor:'Greg',data:{assignee:'Luke'}})).status,400);
+assert.equal((await request('/api/records','PATCH',{id,version:2,actor:'Greg',data:{assignee:'Luke',team:'Launch'}})).status,200);
+assert.equal((await request('/api/records','POST',{kind:'task',actor:'Unknown',data:task})).status,400);
+assert.equal((await request('/api/records','POST',{kind:'task',actor:'Ben',data:{...task,due:'2026-02-31'}})).status,400);
+const comment=await request('/api/records','POST',{kind:'comment',actor:'Russ',data:{target:'task:'+id,text:'__FRP_TEST__ mentor feedback',resolved:false}});assert.equal(comment.status,201);
+assert.equal((await request('/api/records','PATCH',{id:comment.data.id,version:1,actor:'Ben',data:{resolved:true}})).status,200);
+snapshot=(await request('/api/state')).data.records;assert.equal(snapshot.find(r=>r.id===comment.data.id).data.author,'Russ');
+assert.equal((await request('/api/records','POST',{kind:'event',actor:'Nate',data:{title:'__FRP_TEST__ meeting',description:'Fixture',team:'All teams',category:'Meeting',date:'2026-09-22',time:'16:00'}})).status,201);
+assert.equal((await request('/api/github?repo=invalid')).status,400);
+const listing=await request('/api/github?repo=octocat%2FHello-World');assert.equal(listing.status,200);assert.ok(listing.data.entries.some(e=>e.name==='README'));
+const file=await request('/api/github?'+new URLSearchParams({repo:'octocat/Hello-World',path:'README',ref:listing.data.ref}));assert.equal(file.status,200);assert.ok(file.data.content.includes('Hello World'));
+console.log('Passed: shared reads, task creation, concurrent-update protection, cross-team assignment, input validation, mentor attribution, timeline persistence, GitHub browsing and commit-pinned file loading.');
